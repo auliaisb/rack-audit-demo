@@ -39,5 +39,6 @@ class ContractTest {
         assertEquals(l.getInt("noteMaxLength"), Limits.NOTE_MAX_LENGTH)
         assertEquals(l.getInt("captionMaxLength"), Limits.CAPTION_MAX_LENGTH)
         assertEquals(l.getInt("photoMaxBytes"), Limits.PHOTO_MAX_BYTES)
+        assertEquals(l.getInt("photoMaxEdgePx"), Limits.PHOTO_MAX_EDGE_PX)
     }
 }

@@ -6,7 +6,7 @@ Prerequisites on your machine: Android Studio (recent stable), JDK 17+, Node 20+
 1. Firebase console → Add project (e.g. `rack-audit-demo`). Analytics not needed.
 2. Build → **Authentication** → Get started → enable **Email/Password**. Leave self-registration to the console only (the apps have no sign-up screen).
 3. Build → **Firestore Database** → Create (production mode, region close to users, e.g. `asia-southeast2` Jakarta).
-4. Build → **Storage** → Get started (production mode, same region). Newer projects may require the Blaze (pay-as-you-go) plan to use Storage; check the console. Demo usage stays inside the free quota.
+4. **Do not enable Storage.** Cloud Storage for Firebase needs the paid Blaze plan; this project keeps photos in Firestore instead, so the free Spark plan is enough.
 5. Project settings → Your apps → add an **Android app** with package `com.rackaudit.app` → download `google-services.json` → put it in `android/app/` (git-ignored).
 6. Project settings → Your apps → add a **Web app** → copy the config into `dashboard/.env.local` (see `dashboard/.env.example`).
 
@@ -14,7 +14,7 @@ Prerequisites on your machine: Android Studio (recent stable), JDK 17+, Node 20+
 ```bash
 cp .firebaserc.example .firebaserc      # edit the project id
 npm i -g firebase-tools && firebase login
-firebase deploy --only firestore:rules,firestore:indexes,storage
+firebase deploy --only firestore:rules,firestore:indexes
 ```
 
 ## 3. Create the first users (console)
@@ -45,7 +45,8 @@ cd dashboard && npm run build && cd .. && firebase deploy --only hosting
 ```
 
 ## Before real users
-- [ ] Set a Firestore/Storage **budget alert** (Billing).
+- [ ] If you ever move to the Blaze plan (for Cloud Storage or Functions), set a **budget alert** first and check what it can and cannot stop.
+- [ ] Watch Firestore usage (photos are documents): free quota is 50,000 reads/day.
 - [ ] Turn on Authentication email enumeration protection (Authentication → Settings).
 - [ ] Restrict the Web API key to your hosting domain (Google Cloud → Credentials).
 - [ ] Add Android release signing and register the SHA-256 in the Firebase Android app.

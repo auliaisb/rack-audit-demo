@@ -33,19 +33,19 @@ Clients can read their own doc; supervisors can list all. **No client can write 
 ## `assignments/{id}/photos/{photoId}`
 | field | type | notes |
 |---|---|---|
-| storagePath | string | must equal `assignments/{id}/{photoId}.jpg` |
+| data | bytes (Firestore `Bytes`) | the JPEG itself, 1–500,000 bytes (`photoMaxBytes` in the contract; a document is capped at 1 MiB) |
 | caption | string ≤200 | |
 | uploadedBy | uid | must equal caller |
 | createdAt | serverTimestamp | |
 
 Only the assigned sales rep can add/remove photos, and only while status is `assigned` or `rejected`. No updates.
 
-## Storage
-`assignments/{assignmentId}/{photoId}.jpg` — `image/jpeg`, < 5 MB. Create/delete only by the assigned rep while the assignment is editable. Read by the assigned rep or any supervisor. Rules read Firestore (`firestore.get`) to decide.
+## Why photos are inside Firestore
+Cloud Storage for Firebase needs the paid Blaze plan (Spark projects get no bucket access). To keep the project free and "Firebase only", each photo is a `Bytes` field of its own document. Same access rules as before: create/delete only by the assigned rep while the assignment is editable; read by the assigned rep or any supervisor. At scale, move the files to Cloud Storage and keep only a path here.
 
 ## Known limitations (be honest about these on stage)
 1. **`photoCount` is a client-supplied number.** Rules cannot count a subcollection. A malicious client could submit with `photoCount: 3` and 0 photos. Impact: a supervisor sees an empty submission and rejects it. Real fix: a Cloud Function that recounts on status change (out of scope: "Firebase only, no server code of our own").
-2. Orphan files: upload succeeds but the photo doc write fails → file in Storage without a doc. Harmless, small; a lifecycle cleanup is a later task.
+2. **Photos cost document reads and bandwidth.** Opening a submission reads up to 8 documents of ≤ 500 KB each. Free (Spark) quota, per the Firestore docs: 1 GiB stored, 50,000 reads and 20,000 writes per day. Fine for a demo or a small team, wrong for thousands of assignments. Also: the phone's Firestore cache holds these bytes too.
 3. Firestore rules `get()` calls count as billed reads (about 1–3 per write). Fine at this scale.
 4. Deleting a user from Auth does not delete their `users` doc.
 

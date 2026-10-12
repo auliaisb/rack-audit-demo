@@ -18,6 +18,7 @@
     "noteMaxLength": 1000,
     "captionMaxLength": 200,
     "reviewNoteMaxLength": 500,
-    "photoMaxBytes": 1500000
+    "photoMaxBytes": 500000,
+    "photoMaxEdgePx": 1280
   }
 }

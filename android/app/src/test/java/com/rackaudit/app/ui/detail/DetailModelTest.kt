@@ -23,6 +23,8 @@ import java.io.File
 private class FakeRepo(var status: AssignmentStatus = AssignmentStatus.ASSIGNED) : AssignmentRepository {
     val photoList = mutableListOf<Photo>()
     var failUpload = false
+    /** Simulates a timed-out write that Firestore still delivers later (an offline write is queued, not cancelled). */
+    var uploadAppliedDespiteFailure = false
     var failSubmit = false
     var submitAppliedDespiteFailure = false
     var submitGate: CompletableDeferred<Unit>? = null
@@ -35,8 +37,12 @@ private class FakeRepo(var status: AssignmentStatus = AssignmentStatus.ASSIGNED)
     override suspend fun get(id: String) = assignment()
     override suspend fun photos(assignmentId: String): List<Photo> = photoList.toList()
     override suspend fun addPhoto(assignmentId: String, jpeg: File, caption: String): Photo {
-        if (failUpload) error("network")
-        return Photo("p${photoList.size + 1}", "assignments/a1/p.jpg", caption, "https://x/y").also { photoList += it }
+        val photo = Photo("p${photoList.size + 1}", caption, byteArrayOf(1, 2, 3))
+        if (failUpload) {
+            if (uploadAppliedDespiteFailure) photoList += photo
+            error("network")
+        }
+        return photo.also { photoList += it }
     }
     override suspend fun removePhoto(assignmentId: String, photo: Photo) { photoList.removeAll { it.id == photo.id } }
     override suspend fun submit(assignmentId: String, note: String) {
@@ -86,6 +92,16 @@ class DetailModelTest {
         m.onPhotoCaptured(tmp())
         assertEquals(UiMessage.UPLOAD_FAILED, m.state.value.message)
         assertEquals(0, m.state.value.photos.size)
+        assertEquals(Busy.NONE, m.state.value.busy)
+    }
+
+    @Test fun photoWriteTimesOutButLandsLater_isShown_notReportedAsFailure() {
+        // Photos now live in Firestore, so a timed-out write is queued, not cancelled (same trap as submit).
+        val repo = FakeRepo().apply { failUpload = true; uploadAppliedDespiteFailure = true }
+        val m = newModel(repo)
+        m.onPhotoCaptured(tmp())
+        assertEquals(1, m.state.value.photos.size) // shown, so the rep does not take it twice
+        assertNull(m.state.value.message)
         assertEquals(Busy.NONE, m.state.value.busy)
     }
 

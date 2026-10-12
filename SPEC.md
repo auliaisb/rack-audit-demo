@@ -25,14 +25,14 @@ A retail sales team visits client stores and must prove how the client's product
 Firebase only. No server code of our own.
 - Authentication: email + password. Accounts are created by an admin in the Firebase console (no self-registration).
 - Firestore: `users`, `assignments`, `assignments/{id}/photos` (see `docs/data-model.md`).
-- Storage: `assignments/{id}/{photoId}.jpg`.
+- No Cloud Storage: it needs the paid Blaze plan. Each photo is stored inside its Firestore document as a `Bytes` field.
 - Security Rules are the real backend: they enforce roles, ownership, allowed fields and the status flow.
 - Hosting: the dashboard.
 
 ## Constraints
 - UI language: Bahasa Indonesia. Code, identifiers and docs: English.
-- Photos compressed on the phone to ≤ 1.5 MB, long edge ≤ 1600 px (rules cap at 5 MB).
-- Offline: Firestore offline cache is on, but **photo upload needs a connection** (non-goal: upload queue).
+- Photos compressed on the phone to ≤ 500 KB, long edge ≤ 1280 px (a Firestore document is capped at 1 MiB; the rules enforce 500,000 bytes).
+- Offline: Firestore offline cache is on, but **saving a photo gives up after 30 s without a connection** (non-goal: upload queue).
 - Android minSdk 26. Dashboard on current desktop Chrome/Edge/Firefox.
 
 ## Non-goals

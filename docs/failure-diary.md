@@ -9,7 +9,7 @@ Entries are tagged by **how it was found**: `ran` (a tool failed), `read` (spott
 ### 1. The sandbox could not build the project at all — `ran`
 **What happened.** npm, Maven Central and Google Maven are all blocked from the environment where the AI worked (`CONNECT tunnel failed, response 403`). No Android SDK, no emulator, no Firebase emulator.
 **Consequence.** The Compose screens, the Firebase repositories, the React pages, the Security Rules and the rules tests have **never been executed**. Everything the AI wrote there is a first draft, honestly unverified.
-**What changed.** The code was split so that the risky logic is Android-free and runs on a plain JVM / plain Node: `StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel` (Kotlin) and `status.js`, `validation.js` (JS). Those *were* executed (53 tests: 13 JS, 40 Kotlin).
+**What changed.** The code was split so that the risky logic is Android-free and runs on a plain JVM / plain Node: `StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel` (Kotlin) and `status.js`, `validation.js` (JS). Those *were* executed (54 tests: 13 JS, 41 Kotlin).
 **Lesson for the talk.** Architecture decides what you can test. "Thin UI, logic in plain classes" is not taste, it is what made verification possible when tooling was missing.
 
 ### 2. `node --test test/` failed on Node 22 — `ran`
@@ -34,8 +34,8 @@ Entries are tagged by **how it was found**: `ran` (a tool failed), `read` (spott
 **Lesson.** "Depend on an interface" only works if the interface is *physically* separate from the implementation's dependencies.
 
 ### 6. Offline writes never finish — `design`
-**What happened (before it happened).** A Firestore `set()/update()` Task completes only after the *server* acknowledges. With no signal the Task hangs, so a naive "busy" spinner spins forever. Storage uploads silently retry for 10 minutes by default.
-**Fix.** `withTimeout(30s)` around writes, `maxUploadRetryTimeMillis = 30s` for Storage, and — important — after a failed submit the app **re-reads the server state**, because a timed-out write is not cancelled and may still land later. `DetailModelTest.timeoutButServerAppliedWrite_isNotReportedAsFailure` covers that.
+**What happened (before it happened).** A Firestore `set()/update()` Task completes only after the *server* acknowledges. With no signal the Task hangs, so a naive "busy" spinner spins forever. (Storage uploads also retry silently for 10 minutes by default; moot since entry 10, but the timeout trap moved to photo writes.)
+**Fix.** `withTimeout(30s)` around writes and — important — after a failed submit the app **re-reads the server state**, because a timed-out write is not cancelled and may still land later. `DetailModelTest.timeoutButServerAppliedWrite_isNotReportedAsFailure` covers that.
 **Lesson.** The happy path of generated code is usually fine; the network edge cases are where it needs a human who has shipped Android apps.
 
 ### 7. A "fix" that reported the wrong problem — `read`
@@ -52,15 +52,22 @@ Entries are tagged by **how it was found**: `ran` (a tool failed), `read` (spott
 **What changed.** The cycle includes a stub step that must fail the *behavioural* tests, and a mutation check afterwards (4 of 4 injected bugs caught).
 **Lesson.** A test you have never seen fail has not earned your trust.
 
+### 10. Firebase Storage needs a paid plan: the design changed two days before the talk — `ran`
+**What happened.** The first design stored photos in Cloud Storage. When the author set up the Firebase project, Storage demanded the Blaze (pay-as-you-go) plan. [Firebase's own FAQ](https://firebase.google.com/docs/storage/faqs-storage-changes-announced-sept-2024) says Spark projects lose access to all buckets. The setup doc had a vague "newer projects may require Blaze; check the console" line, which nobody acted on before it became a blocker.
+**Fix.** Photos became a `data` `Bytes` field of `assignments/{id}/photos/{photoId}`. The contract changed first (`photoMaxBytes` 1,500,000 → 500,000, new `photoMaxEdgePx` 1280, because a document is capped at 1 MiB); `ContractTest` went red, then `Limits` was updated. `storage.rules`, the Storage SDK and Coil were removed; the 26 rules tests were rewritten for the new shape (still 26).
+**A bug the change would have introduced.** A photo write is now a Firestore write, so a timed-out write is queued and may land later (entry 6). The first version would have shown "upload failed" for a photo that then appeared, tempting a double photo. `DetailModelTest.photoWriteTimesOutButLandsLater_isShown_notReportedAsFailure` was written first (red: expected 1 but was 0), then the fix (green), then 3 mutants (all caught).
+**Costs to say out loud.** Opening a submission reads up to 8 documents of ≤ 500 KB; free quota is 50,000 reads/day and 1 GiB stored. Fine for a demo or small team, not a design for thousands of assignments (that is Storage's job).
+**Lesson.** The change was quick and low-risk because the limit lives in one contract file that tests read, and the logic is separate from the Firebase code. And: read the platform's billing constraints in the first hour, not the last two days.
+
 ---
 
 ## What did not go wrong (and why you should not trust that)
-- The Firestore and Storage rules passed a bracket-balance check and nothing else. **No rule has been evaluated.** The 26 rules tests in `firebase/test/rules.test.mjs` are written but unrun. Expect at least one rule or one test to be wrong on the first run. That is normal, and a good story for the talk: record the first run and show what failed.
+- The Firestore rules passed a bracket-balance check and nothing else (including the new `data.size()` checks on `bytes`: I believe `size()` exists for bytes in rules, but nothing has evaluated it). **No rule has been evaluated.** The 26 rules tests in `firebase/test/rules.test.mjs` are written but unrun. Expect at least one rule or one test to be wrong on the first run. That is normal, and a good story for the talk: record the first run and show what failed.
 - The React pages passed a JSX syntax transform. They have not been bundled or opened in a browser.
 - Dependency versions in `libs.versions.toml` and `package.json` are from the AI's memory. They have not been resolved.
 
 ## Check on the checks (mutation test)
-Twelve deliberate bugs (eight, then four more on `OverdueRule`) were injected into the executable logic (dropped transition, wrong photo limit, missing trim, wrong sort direction, removed double-tap guard, no server reconciliation after failed submit, transition ignoring the actor, reject without a reason). All twelve were caught by the tests. This says the *logic* tests are meaningful; it says nothing about the UI, data layer or rules.
+Fifteen deliberate bugs (eight, four on `OverdueRule`, three on the photo-failure handling) were injected into the executable logic (dropped transition, wrong photo limit, missing trim, wrong sort direction, removed double-tap guard, no server reconciliation after failed submit, transition ignoring the actor, reject without a reason). All fifteen were caught by the tests. This says the *logic* tests are meaningful; it says nothing about the UI, data layer or rules.
 
 ## Your entries
 <!-- Add: date, what you asked the AI, what it produced, what broke, how you found out, what you changed. -->

@@ -48,10 +48,8 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
-    implementation(libs.firebase.storage)
     implementation(libs.coroutines.android)
     implementation(libs.coroutines.play.services)
-    implementation(libs.coil.compose)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

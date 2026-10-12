@@ -3,8 +3,8 @@
 Read `SPEC.md`, `docs/data-model.md` and `contract/assignment-status.json` first. They win over your assumptions.
 
 ## Hard rules
-1. **Never trust the client.** Every permission lives in `firebase/firestore.rules` / `storage.rules`. UI hiding a button is not security.
-2. Status transitions and limits come from `contract/assignment-status.json`. Do not hard-code a new status or number in one place only. If the contract changes, change: the JSON, both rules files, `StatusRules.kt`, `dashboard/src/domain`, and the tests. All in one commit.
+1. **Never trust the client.** Every permission lives in `firebase/firestore.rules`. UI hiding a button is not security.
+2. Status transitions and limits come from `contract/assignment-status.json`. Do not hard-code a new status or number in one place only. If the contract changes, change: the JSON, the rules file, `StatusRules.kt`, `dashboard/src/domain`, and the tests. All in one commit.
 3. No new dependency without a one-line reason in the commit message.
 4. Android: Kotlin, Jetpack Compose, one ViewModel per screen, repositories behind an interface, no Firebase calls inside composables.
 5. Dashboard: React function components, no router library, no state library. Firebase calls only in `src/api.js`.
@@ -13,6 +13,7 @@ Read `SPEC.md`, `docs/data-model.md` and `contract/assignment-status.json` first
 8. Every rules change needs a test in `firebase/test/rules.test.mjs`, written from `SPEC.md`, not from the rules file.
 9. **Test first for logic.** For any new rule, validation or state logic: write the tests from the requirement, run them, show them FAILING for the right reason (a stub is fine), only then implement; refactor as a separate step. Never write the tests and the implementation in one go. See `docs/tdd-walkthrough.md`.
 10. Do not add Cloud Functions. If a requirement seems to need one, stop and say so (see limitation 1 in `docs/data-model.md`).
+11. Do not add Cloud Storage (it needs a paid plan). Photos are `Bytes` fields in Firestore, capped by `photoMaxBytes` / `photoMaxEdgePx` in the contract. If photos must get bigger, stop and say so: that is a move to Storage, not a bigger number.
 
 ## Before you say "done"
 - `cd dashboard && npm test` (pure-logic tests, no install needed)

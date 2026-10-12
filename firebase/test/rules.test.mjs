@@ -1,6 +1,6 @@
 // Security Rules tests. Written from SPEC.md, not from the rules file.
 // Run with the emulators:  cd firebase && npm test
-// (needs: npm install, and Java for the Firestore/Storage emulators)
+// (needs: npm install, and Java for the Firestore emulator)
 import { test, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
@@ -8,9 +8,8 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, addDoc,
-  collection, query, where, serverTimestamp, Timestamp,
+  collection, query, where, serverTimestamp, Timestamp, Bytes,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getBytes } from 'firebase/storage';
 
 const PROJECT = 'demo-rack-audit';
 let env;
@@ -19,7 +18,6 @@ before(async () => {
   env = await initializeTestEnvironment({
     projectId: PROJECT,
     firestore: { rules: readFileSync('firestore.rules', 'utf8'), host: '127.0.0.1', port: 8080 },
-    storage: { rules: readFileSync('storage.rules', 'utf8'), host: '127.0.0.1', port: 9199 },
   });
 });
 after(async () => { await env.cleanup(); });
@@ -27,7 +25,6 @@ after(async () => { await env.cleanup(); });
 // ---- fixtures -------------------------------------------------------------
 async function seed({ status = 'assigned', photoCount = 0 } = {}) {
   await env.clearFirestore();
-  await env.clearStorage();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'users/boss'), { role: 'supervisor', displayName: 'Boss', active: true });
@@ -173,53 +170,59 @@ test('nobody deletes assignments', async () => {
   await assertFails(deleteDoc(doc(dbOf('rep1'), 'assignments/a1')));
 });
 
-// ---- photos (Firestore docs) ---------------------------------------------
-const photo = (id, over = {}) => ({
-  storagePath: `assignments/a1/${id}.jpg`, caption: 'Rak atas', uploadedBy: 'rep1',
+// ---- photos (stored inside Firestore documents, as Bytes) -----------------
+// Limit comes from contract/assignment-status.json: photoMaxBytes. Keep this number in sync.
+const MAX_PHOTO_BYTES = 500000;
+const bytesOf = (n) => Bytes.fromUint8Array(new Uint8Array(n).fill(0xff));
+const photo = (over = {}) => ({
+  data: bytesOf(2000), caption: 'Rak atas', uploadedBy: 'rep1',
   createdAt: serverTimestamp(), ...over,
 });
+const photoPath = 'assignments/a1/photos/abcdefgh12345678';
+const seedPhoto = () => env.withSecurityRulesDisabled(async (c) =>
+  setDoc(doc(c.firestore(), photoPath), { data: bytesOf(10), caption: '', uploadedBy: 'rep1', createdAt: Timestamp.now() }));
 
-test('assigned rep adds a photo doc while editable; storagePath must match', async () => {
+test('assigned rep adds a photo while editable; cannot sign it as someone else', async () => {
   const d = dbOf('rep1');
-  await assertSucceeds(setDoc(doc(d, 'assignments/a1/photos/abcdefgh12345678'), photo('abcdefgh12345678')));
-  await assertFails(setDoc(doc(d, 'assignments/a1/photos/zzzzzzzz12345678'), photo('abcdefgh12345678')));
-  await assertFails(setDoc(doc(d, 'assignments/a1/photos/yyyyyyyy12345678'),
-    photo('yyyyyyyy12345678', { uploadedBy: 'rep2' })));
+  await assertSucceeds(setDoc(doc(d, photoPath), photo()));
+  await assertSucceeds(setDoc(doc(d, 'assignments/a1/photos/biggest12345678'), photo({ data: bytesOf(MAX_PHOTO_BYTES) })));
+  await assertFails(setDoc(doc(d, 'assignments/a1/photos/yyyyyyyy12345678'), photo({ uploadedBy: 'rep2' })));
+});
+
+test('photo payload is validated: size, type, fields', async () => {
+  const d = dbOf('rep1');
+  const at = (id) => doc(d, `assignments/a1/photos/${id}`);
+  await assertFails(setDoc(at('toobig123456789'), photo({ data: bytesOf(MAX_PHOTO_BYTES + 1) })));
+  await assertFails(setDoc(at('empty1234567890'), photo({ data: bytesOf(0) })));
+  await assertFails(setDoc(at('string12345678'), photo({ data: 'not bytes' })));
+  await assertFails(setDoc(at('caption12345678'), photo({ caption: 'x'.repeat(201) })));
+  await assertFails(setDoc(at('extra123456789'), photo({ extra: 1 })));
+  await assertFails(setDoc(at('oldfield1234567'), photo({ storagePath: 'assignments/a1/x.jpg' })));
+  const { data, ...noData } = photo();
+  await assertFails(setDoc(at('nodata123456789'), noData));
 });
 
 test('photos cannot be added after submission, nor by another rep or a supervisor', async () => {
-  await assertFails(setDoc(doc(dbOf('rep2'), 'assignments/a1/photos/abcdefgh12345678'), photo('abcdefgh12345678')));
-  await assertFails(setDoc(doc(dbOf('boss'), 'assignments/a1/photos/abcdefgh12345678'), photo('abcdefgh12345678')));
+  await assertFails(setDoc(doc(dbOf('rep2'), photoPath), photo({ uploadedBy: 'rep2' })));
+  await assertFails(setDoc(doc(dbOf('boss'), photoPath), photo({ uploadedBy: 'boss' })));
   await seed({ status: 'submitted', photoCount: 1 });
-  await assertFails(setDoc(doc(dbOf('rep1'), 'assignments/a1/photos/abcdefgh12345678'), photo('abcdefgh12345678')));
+  await assertFails(setDoc(doc(dbOf('rep1'), photoPath), photo()));
 });
 
-test('supervisor can read photos; other rep cannot', async () => {
-  await env.withSecurityRulesDisabled(async (c) =>
-    setDoc(doc(c.firestore(), 'assignments/a1/photos/abcdefgh12345678'), { storagePath: 'x', caption: '', uploadedBy: 'rep1', createdAt: Timestamp.now() }));
+test('supervisor and the assigned rep can read photos; another rep cannot', async () => {
+  await seedPhoto();
   await assertSucceeds(getDocs(collection(dbOf('boss'), 'assignments/a1/photos')));
+  await assertSucceeds(getDocs(collection(dbOf('rep1'), 'assignments/a1/photos')));
   await assertFails(getDocs(collection(dbOf('rep2'), 'assignments/a1/photos')));
 });
 
-// ---- Storage --------------------------------------------------------------
-const jpeg = () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
-const meta = { contentType: 'image/jpeg' };
-
-test('storage: assigned rep uploads a jpeg; other rep and wrong type are refused', async () => {
-  const ok = ref(as('rep1').storage(), 'assignments/a1/abcdefgh12345678.jpg');
-  await assertSucceeds(uploadBytes(ok, jpeg(), meta));
-  const other = ref(as('rep2').storage(), 'assignments/a1/bbbbbbbb12345678.jpg');
-  await assertFails(uploadBytes(other, jpeg(), meta));
-  const wrongType = ref(as('rep1').storage(), 'assignments/a1/cccccccc12345678.jpg');
-  await assertFails(uploadBytes(wrongType, jpeg(), { contentType: 'text/html' }));
-});
-
-test('storage: upload refused after submission; supervisor can read but not write', async () => {
-  const p = 'assignments/a1/abcdefgh12345678.jpg';
-  await assertSucceeds(uploadBytes(ref(as('rep1').storage(), p), jpeg(), meta));
-  await assertSucceeds(getBytes(ref(as('boss').storage(), p)));
-  await assertFails(getBytes(ref(as('rep2').storage(), p)));
-  await assertFails(uploadBytes(ref(as('boss').storage(), 'assignments/a1/dddddddd12345678.jpg'), jpeg(), meta));
+test('photos: only the assigned rep deletes, only while editable; nobody updates', async () => {
+  await seedPhoto();
+  await assertFails(updateDoc(doc(dbOf('rep1'), photoPath), { caption: 'ubah' }));
+  await assertFails(deleteDoc(doc(dbOf('rep2'), photoPath)));
+  await assertFails(deleteDoc(doc(dbOf('boss'), photoPath)));
+  await assertSucceeds(deleteDoc(doc(dbOf('rep1'), photoPath)));
   await seed({ status: 'submitted', photoCount: 1 });
-  await assertFails(uploadBytes(ref(as('rep1').storage(), 'assignments/a1/eeeeeeee12345678.jpg'), jpeg(), meta));
+  await seedPhoto();
+  await assertFails(deleteDoc(doc(dbOf('rep1'), photoPath)));
 });

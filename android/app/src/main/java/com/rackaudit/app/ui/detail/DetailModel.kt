@@ -112,7 +112,19 @@ class DetailModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(busy = Busy.NONE, message = UiMessage.UPLOAD_FAILED) }
+                // A timed-out write is queued, not cancelled, and may still land (see WRITE_TIMEOUT_MS).
+                // Show the server's truth: if the photo arrived, it is not a failure.
+                val before = _state.value.photos.size
+                val fresh = runCatching { repo.photos(assignmentId) }.getOrNull()
+                val landed = fresh != null && fresh.size > before
+                _state.update {
+                    it.copy(
+                        busy = Busy.NONE,
+                        photos = fresh ?: it.photos,
+                        caption = if (landed) "" else it.caption,
+                        message = if (landed) null else UiMessage.UPLOAD_FAILED,
+                    )
+                }
             } finally {
                 captured.delete()
                 if (prepared != null && prepared != captured) prepared.delete()

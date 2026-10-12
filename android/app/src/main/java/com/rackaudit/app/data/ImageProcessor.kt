@@ -26,11 +26,10 @@ object ImageProcessor {
         val (w, h) = ImageMath.scaledSize(rotated.width, rotated.height, Limits.PHOTO_MAX_EDGE_PX)
         val scaled = if (w == rotated.width && h == rotated.height) rotated else Bitmap.createScaledBitmap(rotated, w, h, true)
 
-        var quality = 85
-        while (quality >= 40) {
+        // Stored inside a Firestore document (1 MiB cap), so try descending quality until it fits.
+        for (quality in intArrayOf(80, 65, 50, 35)) {
             FileOutputStream(output).use { scaled.compress(Bitmap.CompressFormat.JPEG, quality, it) }
             if (output.length() <= Limits.PHOTO_MAX_BYTES) return true
-            quality -= 15
         }
         return false
     }

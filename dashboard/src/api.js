@@ -6,8 +6,7 @@ import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where, orderBy,
   onSnapshot, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
-import { getDownloadURL, ref } from 'firebase/storage';
-import { auth, db, storage } from './firebase.js';
+import { auth, db } from './firebase.js';
 
 // ---- auth ----
 export const watchAuth = (cb) => onAuthStateChanged(auth, cb);
@@ -71,15 +70,17 @@ export function cancelAssignment(id) {
 }
 
 // ---- photos ----
-export async function listPhotosWithUrls(assignmentId) {
+// Photos are stored inside their Firestore documents (field `data`, type Bytes) because Cloud Storage
+// needs a paid plan. Each one is turned into a blob: URL for <img>; call releasePhotos() when done.
+export async function listPhotos(assignmentId) {
   const snap = await getDocs(query(collection(db, 'assignments', assignmentId, 'photos'), orderBy('createdAt', 'asc')));
-  return Promise.all(snap.docs.map(async (d) => {
-    const p = { id: d.id, ...d.data() };
-    try {
-      p.url = await getDownloadURL(ref(storage, p.storagePath));
-    } catch {
-      p.url = null; // missing/denied file: UI shows a placeholder instead of crashing
-    }
-    return p;
-  }));
+  return snap.docs.map((d) => {
+    const { data, caption } = d.data();
+    const url = data ? URL.createObjectURL(new Blob([data.toUint8Array()], { type: 'image/jpeg' })) : null;
+    return { id: d.id, caption: caption ?? '', url }; // url null = field missing: UI shows a placeholder
+  });
+}
+
+export function releasePhotos(photos) {
+  photos.forEach((p) => { if (p.url) URL.revokeObjectURL(p.url); });
 }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { getAssignment, listPhotosWithUrls, reviewAssignment, cancelAssignment } from '../api.js';
+import { useEffect, useRef, useState } from 'react';
+import { getAssignment, listPhotos, releasePhotos, reviewAssignment, cancelAssignment } from '../api.js';
 import contract from '../domain/contract.js';
 import { nextStatuses, statusLabel } from '../domain/status.js';
 import { validateReview, hasErrors } from '../domain/validation.js';
@@ -12,17 +12,26 @@ export default function Review({ id, onBack }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
-  async function load() {
+  const photosRef = useRef([]); // blob: URLs must be revoked when replaced or when the page closes
+  function showPhotos(list) {
+    releasePhotos(photosRef.current);
+    photosRef.current = list;
+    setPhotos(list);
+  }
+
+  // Photos are whole Firestore documents (bytes): read them once, not again after every decision.
+  async function load(withPhotos = true) {
     try {
       const data = await getAssignment(id);
       setA(data);
-      if (data) setPhotos(await listPhotosWithUrls(id));
+      if (data && withPhotos) showPhotos(await listPhotos(id));
     } catch {
       setA(null);
       setMessage('Gagal memuat penugasan.');
     }
   }
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
+  useEffect(() => () => releasePhotos(photosRef.current), []);
 
   if (a === undefined) return <p className="muted">Memuat…</p>;
   if (a === null) return <><p className="error">{message || 'Penugasan tidak ditemukan.'}</p><button onClick={onBack}>Kembali</button></>;
@@ -40,7 +49,7 @@ export default function Review({ id, onBack }) {
     setMessage('');
     try {
       await reviewAssignment(id, decision, reviewNote);
-      await load();
+      await load(false);
       setReviewNote('');
     } catch {
       setMessage('Gagal menyimpan keputusan. Status mungkin sudah berubah — muat ulang.');
@@ -53,7 +62,7 @@ export default function Review({ id, onBack }) {
     setBusy(true);
     try {
       await cancelAssignment(id);
-      await load();
+      await load(false);
     } catch {
       setMessage('Gagal membatalkan penugasan.');
     } finally {

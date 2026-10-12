@@ -116,10 +116,14 @@ service cloud.firestore {
         allow get, list: if isSupervisor()
           || (isSales() && assignmentOf(id).assignedTo == request.auth.uid);
 
+        // The photo itself is the `data` field (Bytes): Cloud Storage would need a paid plan.
+        // 500000 = photoMaxBytes in contract/assignment-status.json (a Firestore document is capped at 1 MiB).
         allow create: if ownsEditable()
-          && request.resource.data.keys().hasOnly(['storagePath', 'caption', 'uploadedBy', 'createdAt'])
-          && request.resource.data.keys().hasAll(['storagePath', 'caption', 'uploadedBy', 'createdAt'])
-          && request.resource.data.storagePath == 'assignments/' + id + '/' + photoId + '.jpg'
+          && request.resource.data.keys().hasOnly(['data', 'caption', 'uploadedBy', 'createdAt'])
+          && request.resource.data.keys().hasAll(['data', 'caption', 'uploadedBy', 'createdAt'])
+          && request.resource.data.data is bytes
+          && request.resource.data.data.size() >= 1
+          && request.resource.data.data.size() <= 500000
           && isStr(request.resource.data.caption, 0, 200)
           && request.resource.data.uploadedBy == request.auth.uid
           && request.resource.data.createdAt == request.time;

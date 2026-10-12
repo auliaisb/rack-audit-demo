@@ -1,16 +1,14 @@
 package com.rackaudit.app.data
 
-import android.net.Uri
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.Blob
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import com.google.firebase.storage.FirebaseStorage
-import com.google.firebase.storage.StorageMetadata
 import com.rackaudit.app.domain.AssignmentStatus
 import com.rackaudit.app.domain.AssignmentOrdering
-import kotlinx.coroutines.CancellationException
+import com.rackaudit.app.domain.Limits
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -21,7 +19,6 @@ import java.io.File
 class FirebaseAssignmentRepository(
     private val auth: FirebaseAuth,
     private val db: FirebaseFirestore,
-    private val storage: FirebaseStorage,
 ) : AssignmentRepository {
 
     private val uid: String
@@ -46,54 +43,41 @@ class FirebaseAssignmentRepository(
             check(it.exists()) { "assignment $id not found" }
         }.toAssignment()
 
+    /** Reads every photo's bytes (up to 8 x ~0.3 MB). Fine for the detail screen; never call it for the list. */
     override suspend fun photos(assignmentId: String): List<Photo> {
         val snap = db.collection("assignments").document(assignmentId).collection("photos")
             .orderBy("createdAt", Query.Direction.ASCENDING).get().await()
         return snap.documents.map { d ->
-            val path = d.getString("storagePath").orEmpty()
-            val url = try {
-                storage.reference.child(path).downloadUrl.await().toString()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                null // missing file / denied: show a placeholder instead of failing the whole screen
-            }
-            Photo(d.id, path, d.getString("caption").orEmpty(), url)
+            Photo(d.id, d.getString("caption").orEmpty(), d.getBlob("data")?.toBytes())
         }
     }
 
     override suspend fun addPhoto(assignmentId: String, jpeg: File, caption: String): Photo {
+        val bytes = jpeg.readBytes()
+        // The rules reject bigger documents anyway; fail early with a clear error instead of a permission-denied.
+        require(bytes.size in 1..Limits.PHOTO_MAX_BYTES) { "photo is ${bytes.size} bytes (max ${Limits.PHOTO_MAX_BYTES})" }
+
         val photosCol = db.collection("assignments").document(assignmentId).collection("photos")
         val photoId = photosCol.document().id // generated locally, no network
-        val path = "assignments/$assignmentId/$photoId.jpg"
-        val ref = storage.reference.child(path)
-
-        ref.putFile(Uri.fromFile(jpeg), StorageMetadata.Builder().setContentType("image/jpeg").build()).await()
-        try {
-            withTimeout(WRITE_TIMEOUT_MS) {
-                photosCol.document(photoId).set(
-                    mapOf(
-                        "storagePath" to path,
-                        "caption" to caption.trim(),
-                        "uploadedBy" to uid,
-                        "createdAt" to FieldValue.serverTimestamp(),
-                    ),
-                ).await()
-            }
-        } catch (e: Exception) {
-            // Don't leave an orphan file behind (best effort), then report the original failure.
-            runCatching { ref.delete().await() }
-            throw e
+        // The Task completes only when the server acknowledges; offline it hangs, hence the timeout.
+        // A timed-out write is still queued and may land later: DetailModel re-reads the photos after a failure.
+        withTimeout(WRITE_TIMEOUT_MS) {
+            photosCol.document(photoId).set(
+                mapOf(
+                    "data" to Blob.fromBytes(bytes),
+                    "caption" to caption.trim(),
+                    "uploadedBy" to uid,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                ),
+            ).await()
         }
-        return Photo(photoId, path, caption.trim(), ref.downloadUrl.await().toString())
+        return Photo(photoId, caption.trim(), bytes)
     }
 
     override suspend fun removePhoto(assignmentId: String, photo: Photo) {
-        // Doc first: if this succeeds the photo is gone from the submission even if the file delete fails.
         withTimeout(WRITE_TIMEOUT_MS) {
             db.collection("assignments").document(assignmentId).collection("photos").document(photo.id).delete().await()
         }
-        runCatching { storage.reference.child(photo.storagePath).delete().await() }
     }
 
     override suspend fun submit(assignmentId: String, note: String) {

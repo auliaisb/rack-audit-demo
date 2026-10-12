@@ -16,10 +16,16 @@ data class Assignment(
     val reviewNote: String,
 )
 
+/**
+ * A photo lives inside its Firestore document (Bytes field), because Cloud Storage needs a paid plan.
+ * Identity is the document id: the bytes never change once stored.
+ */
 data class Photo(
     val id: String,
-    val storagePath: String,
     val caption: String,
-    /** Download URL; null if the file is missing or access was denied. */
-    val url: String?,
-)
+    /** JPEG bytes (<= Limits.PHOTO_MAX_BYTES); null only if the stored field is missing or malformed. */
+    val jpeg: ByteArray?,
+) {
+    override fun equals(other: Any?): Boolean = other is Photo && id == other.id && caption == other.caption
+    override fun hashCode(): Int = 31 * id.hashCode() + caption.hashCode()
+}

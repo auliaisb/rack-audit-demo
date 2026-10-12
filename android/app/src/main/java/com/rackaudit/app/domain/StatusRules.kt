@@ -46,6 +46,7 @@ object Limits {
     const val MAX_PHOTOS = 8
     const val NOTE_MAX_LENGTH = 1000
     const val CAPTION_MAX_LENGTH = 200
-    const val PHOTO_MAX_BYTES = 1_500_000
-    const val PHOTO_MAX_EDGE_PX = 1600
+    /** Photos are stored inside a Firestore document (hard cap 1 MiB per document), hence the small size. */
+    const val PHOTO_MAX_BYTES = 500_000
+    const val PHOTO_MAX_EDGE_PX = 1280
 }
