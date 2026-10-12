@@ -11,7 +11,7 @@ A retail sales team visits client stores and must prove how the client's product
 
 ## Features (the whole list; anything else is a non-goal)
 1. Supervisor creates an assignment: store name/address, title, instructions, due date, assigned sales rep.
-2. Sales sees only their own assignments (work they can act on first, soonest due first; finished ones last) in the app.
+2. Sales sees only their own assignments (work they can act on first, soonest due first; finished ones last) in the app. The list updates live; both the list and the detail screen support pull-to-refresh, and the detail screen re-reads from the server every time it is opened (it must never show a status the supervisor has already changed).
 3. Sales opens an assignment, takes 1–8 photos with the camera, adds a caption per photo and one overall description, and submits.
 4. Supervisor sees all assignments, filters by status, opens a submission, views photos and description.
 5. Supervisor approves, or rejects with a mandatory reason. A rejected assignment returns to the sales rep, who adds/removes photos and resubmits.

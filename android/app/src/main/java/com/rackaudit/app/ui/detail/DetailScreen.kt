@@ -18,12 +18,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +51,7 @@ import com.rackaudit.app.ui.list.formatDue
 import com.rackaudit.app.ui.list.statusText
 import java.io.File
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(model: DetailModel, onBack: () -> Unit) {
     val s by model.state.collectAsStateWithLifecycle()
@@ -77,6 +81,12 @@ fun DetailScreen(model: DetailModel, onBack: () -> Unit) {
         }
     }
 
+    // The ViewModel outlives this screen (it is cached per assignment), so every time the screen is shown again
+    // its data may be old: the supervisor could have decided in the meantime. A brand-new model is still loading
+    // here, and refresh() ignores that case.
+    LaunchedEffect(Unit) { model.refresh() }
+
+    PullToRefreshBox(isRefreshing = s.refreshing, onRefresh = model::refresh, modifier = Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         TextButton(onClick = onBack) { Text(stringResource(R.string.detail_back)) }
 
@@ -141,6 +151,7 @@ fun DetailScreen(model: DetailModel, onBack: () -> Unit) {
             }
         }
     }
+    }
 }
 
 /** 1280 px source / 4 = about 320 px: plenty for an 80 dp thumbnail and cheap on memory. */
@@ -171,6 +182,7 @@ private fun errorText(e: SubmissionError): String = when (e) {
 
 @Composable
 private fun messageText(m: UiMessage): String = when (m) {
+    UiMessage.REFRESH_FAILED -> stringResource(R.string.err_refresh)
     UiMessage.UPLOAD_FAILED -> stringResource(R.string.err_upload)
     UiMessage.SUBMIT_FAILED -> stringResource(R.string.err_submit)
     UiMessage.PHOTO_PROCESS_FAILED -> stringResource(R.string.err_photo_process)

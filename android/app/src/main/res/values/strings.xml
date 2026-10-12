@@ -41,6 +41,7 @@
     <string name="err_note_too_long">Deskripsi terlalu panjang.</string>
     <string name="err_photos_min">Minimal %1$d foto.</string>
     <string name="err_photos_max">Maksimal %1$d foto.</string>
+    <string name="err_refresh">Gagal memuat ulang. Periksa koneksi internet.</string>
     <string name="err_upload">Gagal mengunggah foto. Periksa koneksi lalu coba lagi.</string>
     <string name="err_submit">Gagal mengirim. Coba lagi.</string>
     <string name="err_camera">Gagal membuka kamera.</string>

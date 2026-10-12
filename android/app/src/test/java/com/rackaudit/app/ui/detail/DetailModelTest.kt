@@ -30,12 +30,22 @@ private class FakeRepo(var status: AssignmentStatus = AssignmentStatus.ASSIGNED)
     var submitGate: CompletableDeferred<Unit>? = null
     var submitCalls = 0
     var lastNote: String? = null
+    var reviewNote = ""
+    var failServerReads = false
+    var serverGets = 0
 
-    private fun assignment() = Assignment("a1", "Cek rak", "", "Toko A", "", 0L, status, photoList.size, lastNote.orEmpty(), "")
+    private fun assignment() = Assignment("a1", "Cek rak", "", "Toko A", "", 0L, status, photoList.size, lastNote.orEmpty(), reviewNote)
 
     override fun observeMine(): Flow<List<Assignment>> = emptyFlow()
-    override suspend fun get(id: String) = assignment()
-    override suspend fun photos(assignmentId: String): List<Photo> = photoList.toList()
+    override suspend fun refreshMine() {}
+    override suspend fun get(id: String, serverOnly: Boolean): Assignment {
+        if (serverOnly) { serverGets++; if (failServerReads) error("offline") }
+        return assignment()
+    }
+    override suspend fun photos(assignmentId: String, serverOnly: Boolean): List<Photo> {
+        if (serverOnly && failServerReads) error("offline")
+        return photoList.toList()
+    }
     override suspend fun addPhoto(assignmentId: String, jpeg: File, caption: String): Photo {
         val photo = Photo("p${photoList.size + 1}", caption, byteArrayOf(1, 2, 3))
         if (failUpload) {
@@ -175,9 +185,71 @@ class DetailModelTest {
         assertFalse(f.exists())
     }
 
+    // ---- refresh: the supervisor acted while the rep's detail screen was already open ----
+
+    @Test fun refresh_showsTheSupervisorsDecision_andDropsTheOldSubmittedMessage() {
+        val repo = FakeRepo()
+        val m = newModel(repo)
+        m.onPhotoCaptured(tmp())
+        m.onNoteChange("ok")
+        m.submit()
+        assertEquals(UiMessage.SUBMITTED_OK, m.state.value.message) // "Menunggu verifikasi supervisor"
+        repo.status = AssignmentStatus.APPROVED // supervisor approves on the dashboard
+        m.refresh()
+        assertEquals(AssignmentStatus.APPROVED, m.state.value.assignment?.status)
+        assertNull(m.state.value.message) // the stale "waiting" message must not outlive the real state
+        assertFalse(m.state.value.refreshing)
+        assertEquals(1, repo.serverGets) // really asked the server, not the cache
+    }
+
+    @Test fun refresh_afterRejection_makesTheTaskEditableAgainWithTheReason() {
+        val repo = FakeRepo(AssignmentStatus.SUBMITTED)
+        val m = newModel(repo)
+        assertFalse(m.state.value.canEdit)
+        repo.status = AssignmentStatus.REJECTED
+        repo.reviewNote = "Rak bawah belum difoto"
+        m.refresh()
+        assertTrue(m.state.value.canEdit)
+        assertEquals("Rak bawah belum difoto", m.state.value.assignment?.reviewNote)
+    }
+
+    @Test fun refresh_keepsWhatTheRepIsTyping() {
+        val repo = FakeRepo(AssignmentStatus.REJECTED)
+        val m = newModel(repo)
+        m.onNoteChange("draf saya")
+        m.onCaptionChange("rak atas")
+        m.refresh()
+        assertEquals("draf saya", m.state.value.note)
+        assertEquals("rak atas", m.state.value.caption)
+    }
+
+    @Test fun refresh_whenOffline_keepsOldDataAndSaysSo() {
+        val repo = FakeRepo(AssignmentStatus.SUBMITTED)
+        val m = newModel(repo)
+        repo.failServerReads = true
+        repo.status = AssignmentStatus.APPROVED
+        m.refresh()
+        assertEquals(AssignmentStatus.SUBMITTED, m.state.value.assignment?.status) // not blanked, not guessed
+        assertEquals(UiMessage.REFRESH_FAILED, m.state.value.message)
+        assertFalse(m.state.value.refreshing)
+        assertFalse(m.state.value.loadError)
+    }
+
+    @Test fun refresh_isIgnoredWhileUploadingOrSubmitting() {
+        val gate = CompletableDeferred<Unit>()
+        val repo = FakeRepo().apply { submitGate = gate }
+        val m = newModel(repo)
+        m.onPhotoCaptured(tmp())
+        m.onNoteChange("ok")
+        m.submit() // in flight
+        m.refresh()
+        assertEquals(0, repo.serverGets)
+        gate.complete(Unit)
+    }
+
     @Test fun loadFailureIsReported() {
         val repo = object : AssignmentRepository by FakeRepo() {
-            override suspend fun get(id: String): Assignment = error("offline")
+            override suspend fun get(id: String, serverOnly: Boolean): Assignment = error("offline")
         }
         val m = DetailModel("a1", repo, okPreparer, scope).also { it.load() }
         assertTrue(m.state.value.loadError)

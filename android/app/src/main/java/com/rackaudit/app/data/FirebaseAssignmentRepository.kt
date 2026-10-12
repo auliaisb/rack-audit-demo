@@ -6,6 +6,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.Source
 import com.rackaudit.app.domain.AssignmentStatus
 import com.rackaudit.app.domain.AssignmentOrdering
 import com.rackaudit.app.domain.Limits
@@ -38,15 +39,28 @@ class FirebaseAssignmentRepository(
         awaitClose { registration.remove() }
     }
 
-    override suspend fun get(id: String): Assignment =
-        db.collection("assignments").document(id).get().await().also {
+    override suspend fun get(id: String, serverOnly: Boolean): Assignment =
+        readWithin(serverOnly) { db.collection("assignments").document(id).get(source(serverOnly)).await() }.also {
             check(it.exists()) { "assignment $id not found" }
         }.toAssignment()
 
+    override suspend fun refreshMine() {
+        // Updates the local cache, which makes the live listener in observeMine() deliver the new items.
+        readWithin(serverOnly = true) { db.collection("assignments").whereEqualTo("assignedTo", uid).get(Source.SERVER).await() }
+    }
+
+    private fun source(serverOnly: Boolean) = if (serverOnly) Source.SERVER else Source.DEFAULT
+
+    /** A server-only read offline would wait a long time; give up after READ_TIMEOUT_MS so pull-to-refresh can say so. */
+    private suspend fun <T> readWithin(serverOnly: Boolean, block: suspend () -> T): T =
+        if (serverOnly) withTimeout(READ_TIMEOUT_MS) { block() } else block()
+
     /** Reads every photo's bytes (up to 8 x ~0.3 MB). Fine for the detail screen; never call it for the list. */
-    override suspend fun photos(assignmentId: String): List<Photo> {
-        val snap = db.collection("assignments").document(assignmentId).collection("photos")
-            .orderBy("createdAt", Query.Direction.ASCENDING).get().await()
+    override suspend fun photos(assignmentId: String, serverOnly: Boolean): List<Photo> {
+        val snap = readWithin(serverOnly) {
+            db.collection("assignments").document(assignmentId).collection("photos")
+                .orderBy("createdAt", Query.Direction.ASCENDING).get(source(serverOnly)).await()
+        }
         return snap.documents.map { d ->
             Photo(d.id, d.getString("caption").orEmpty(), d.getBlob("data")?.toBytes())
         }
@@ -104,6 +118,9 @@ class FirebaseAssignmentRepository(
          * after an error for that reason.
          */
         const val WRITE_TIMEOUT_MS = 30_000L
+
+        /** Server-only reads (refresh): short, because the user is looking at a spinner. */
+        const val READ_TIMEOUT_MS = 10_000L
     }
 }
 

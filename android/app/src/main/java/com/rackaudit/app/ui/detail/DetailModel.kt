@@ -24,7 +24,7 @@ fun interface PhotoPreparer {
 
 enum class Busy { NONE, UPLOADING, SUBMITTING }
 
-enum class UiMessage { UPLOAD_FAILED, SUBMIT_FAILED, PHOTO_PROCESS_FAILED, TOO_MANY_PHOTOS, CAMERA_FAILED, SUBMITTED_OK }
+enum class UiMessage { REFRESH_FAILED, UPLOAD_FAILED, SUBMIT_FAILED, PHOTO_PROCESS_FAILED, TOO_MANY_PHOTOS, CAMERA_FAILED, SUBMITTED_OK }
 
 data class DetailState(
     val loading: Boolean = true,
@@ -34,6 +34,7 @@ data class DetailState(
     val note: String = "",
     val caption: String = "",
     val busy: Busy = Busy.NONE,
+    val refreshing: Boolean = false,
     val errors: List<SubmissionError> = emptyList(),
     val message: UiMessage? = null,
 ) {
@@ -73,6 +74,34 @@ class DetailModel(
                 throw e
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, loadError = true) }
+            }
+        }
+    }
+
+    /** Re-read the assignment and photos from the server (pull-to-refresh, and whenever the screen is opened again). */
+    fun refresh() {
+        val s = _state.value
+        if (s.loading || s.refreshing || s.busy != Busy.NONE) return // initial load / own write in flight: don't race it
+        if (s.loadError) { load(); return }
+        _state.update { it.copy(refreshing = true) }
+        scope.launch {
+            try {
+                // serverOnly: offline this must fail, not silently hand back the cached (stale) copy.
+                val a = repo.get(assignmentId, serverOnly = true)
+                val photos = repo.photos(assignmentId, serverOnly = true)
+                _state.update {
+                    it.copy(
+                        refreshing = false,
+                        assignment = a,
+                        // a write that started meanwhile owns the photo list; keep the rep's text and caption as they are
+                        photos = if (it.busy == Busy.NONE) photos else it.photos,
+                        message = null, // e.g. the one-shot "submitted, waiting for the supervisor" must not outlive the real state
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(refreshing = false, message = UiMessage.REFRESH_FAILED) }
             }
         }
     }

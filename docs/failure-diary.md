@@ -9,7 +9,7 @@ Entries are tagged by **how it was found**: `ran` (a tool failed), `read` (spott
 ### 1. The sandbox could not build the project at all — `ran`
 **What happened.** npm, Maven Central and Google Maven are all blocked from the environment where the AI worked (`CONNECT tunnel failed, response 403`). No Android SDK, no emulator, no Firebase emulator.
 **Consequence.** The Compose screens, the Firebase repositories, the React pages, the Security Rules and the rules tests have **never been executed**. Everything the AI wrote there is a first draft, honestly unverified.
-**What changed.** The code was split so that the risky logic is Android-free and runs on a plain JVM / plain Node: `StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel` (Kotlin) and `status.js`, `validation.js` (JS). Those *were* executed (54 tests: 13 JS, 41 Kotlin).
+**What changed.** The code was split so that the risky logic is Android-free and runs on a plain JVM / plain Node: `StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel` (Kotlin) and `status.js`, `validation.js` (JS). Those *were* executed (59 tests: 13 JS, 46 Kotlin).
 **Lesson for the talk.** Architecture decides what you can test. "Thin UI, logic in plain classes" is not taste, it is what made verification possible when tooling was missing.
 
 ### 2. `node --test test/` failed on Node 22 — `ran`
@@ -59,6 +59,12 @@ Entries are tagged by **how it was found**: `ran` (a tool failed), `read` (spott
 **Costs to say out loud.** Opening a submission reads up to 8 documents of ≤ 500 KB; free quota is 50,000 reads/day and 1 GiB stored. Fine for a demo or small team, not a design for thousands of assignments (that is Storage's job).
 **Lesson.** The change was quick and low-risk because the limit lives in one contract file that tests read, and the logic is separate from the Firebase code. And: read the platform's billing constraints in the first hour, not the last two days.
 
+### 11. The detail screen kept showing "waiting for the supervisor" after approval — `ran` (found by the author on a phone)
+**What happened.** The supervisor approved a submission, but the rep's detail screen still said "Menunggu verifikasi supervisor". Two causes, both in code the AI wrote and I had read as correct: (1) the ViewModel is cached per assignment (which fixed entry 4), but `load()` ran only once when it was created, so reopening the same assignment reused old data; (2) after a successful submit the one-shot message "Terkirim. Menunggu verifikasi supervisor." was never cleared. The list was fine because it uses a live listener; the detail screen read once.
+**Fix.** Written test-first (3 of 5 new tests red, 2 green against the stub: entry 9 again): `DetailModel.refresh()` re-reads the assignment and photos with `serverOnly` (so offline it fails instead of returning the cached copy), clears the stale message, keeps what the rep is typing, ignores itself while an upload or submit is running, and reports "Gagal memuat ulang" offline. Triggered by pull-to-refresh and every time the screen is shown again. The list also got pull-to-refresh. Six mutants, six caught.
+**Not covered by any test.** The `PullToRefreshBox` wiring, the `LaunchedEffect`, and `Source.SERVER` reads are UI/Firebase code and have never been compiled or run.
+**Lesson.** Caching a ViewModel to fix one bug created another. State that can change on someone else's device needs either a live listener or an explicit refresh, and the manual checklist needs a "someone else changed it meanwhile" case.
+
 ---
 
 ## What did not go wrong (and why you should not trust that)
@@ -67,7 +73,7 @@ Entries are tagged by **how it was found**: `ran` (a tool failed), `read` (spott
 - Dependency versions in `libs.versions.toml` and `package.json` are from the AI's memory. They have not been resolved.
 
 ## Check on the checks (mutation test)
-Fifteen deliberate bugs (eight, four on `OverdueRule`, three on the photo-failure handling) were injected into the executable logic (dropped transition, wrong photo limit, missing trim, wrong sort direction, removed double-tap guard, no server reconciliation after failed submit, transition ignoring the actor, reject without a reason). All fifteen were caught by the tests. This says the *logic* tests are meaningful; it says nothing about the UI, data layer or rules.
+Twenty-one deliberate bugs (eight, four on `OverdueRule`, three on the photo-failure handling, six on refresh) were injected into the executable logic (dropped transition, wrong photo limit, missing trim, wrong sort direction, removed double-tap guard, no server reconciliation after failed submit, transition ignoring the actor, reject without a reason). All twenty-one were caught by the tests. This says the *logic* tests are meaningful; it says nothing about the UI, data layer or rules.
 
 ## Your entries
 <!-- Add: date, what you asked the AI, what it produced, what broke, how you found out, what you changed. -->

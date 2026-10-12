@@ -12,7 +12,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +46,7 @@ fun statusText(status: AssignmentStatus?): String = when (status) {
 fun formatDue(millis: Long?): String =
     millis?.let { DateFormat.getDateInstance(DateFormat.MEDIUM, Locale("id", "ID")).format(Date(it)) } ?: "—"
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListScreen(vm: ListViewModel, onOpen: (String) -> Unit, onLogout: () -> Unit) {
     val s by vm.state.collectAsStateWithLifecycle()
@@ -52,12 +55,19 @@ fun ListScreen(vm: ListViewModel, onOpen: (String) -> Unit, onLogout: () -> Unit
             Text(stringResource(R.string.list_title), style = MaterialTheme.typography.headlineSmall)
             TextButton(onClick = onLogout) { Text(stringResource(R.string.list_logout)) }
         }
-        when {
-            s.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            s.error -> Text(stringResource(R.string.list_error), color = MaterialTheme.colorScheme.error)
-            s.items.isEmpty() -> Text(stringResource(R.string.list_empty))
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(s.items, key = { it.id }) { AssignmentRow(it) { onOpen(it.id) } }
+        if (s.loading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        } else {
+            // Always a scrollable list (even for "empty" and "error") so the pull gesture works in every state.
+            PullToRefreshBox(isRefreshing = s.refreshing, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (s.refreshFailed) item { Text(stringResource(R.string.err_refresh), color = MaterialTheme.colorScheme.error) }
+                    when {
+                        s.error -> item { Text(stringResource(R.string.list_error), color = MaterialTheme.colorScheme.error) }
+                        s.items.isEmpty() -> item { Text(stringResource(R.string.list_empty)) }
+                        else -> items(s.items, key = { it.id }) { AssignmentRow(it) { onOpen(it.id) } }
+                    }
+                }
             }
         }
     }

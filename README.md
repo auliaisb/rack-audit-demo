@@ -20,8 +20,8 @@ This was written in an environment that could not reach npm / Maven / Google Mav
 | Area | Status |
 |---|---|
 | Dashboard pure logic (`status.js`, `validation.js`) | **Ran**: 13 tests pass (`cd dashboard && npm test`, no install needed) |
-| Kotlin pure logic (`StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel`, contract drift) | **Ran** on a plain JVM with the Kotlin 2.0.21 compiler and JUnit 4: 41 tests pass (including the TDD-built `OverdueRule` and the photo-write-timeout handling). `ContractTest` used a small org.json stand-in locally; Gradle will use the real library. |
-| Mutation check on the above | **Ran**: 15 injected bugs (8 + 4 on `OverdueRule` + 3 on photo-failure handling), all 15 caught |
+| Kotlin pure logic (`StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel`, contract drift) | **Ran** on a plain JVM with the Kotlin 2.0.21 compiler and JUnit 4: 46 tests pass (including the TDD-built `OverdueRule`, the photo-write-timeout handling and the refresh logic). `ContractTest` used a small org.json stand-in locally; Gradle will use the real library. |
+| Mutation check on the above | **Ran**: 21 injected bugs (8 + 4 on `OverdueRule` + 3 on photo-failure handling + 6 on refresh), all 21 caught |
 | JSX files, JSON, XML, Kotlin syntax | **Parsed OK** only (no bundling, no Gradle) |
 | Compose screens, Firebase repositories, `ImageProcessor`, React pages | **Never compiled or run.** First Gradle sync / `npm install && npm run build` will likely show errors (wrong versions, missing imports). |
 | `firestore.rules` (incl. the `bytes.size()` photo checks) | **Never evaluated** (bracket balance only) |
@@ -41,6 +41,8 @@ This was written in an environment that could not reach npm / Maven / Google Mav
 - [ ] Supervisor rejects **without** a reason → blocked. With a reason → rep A sees it as "Ditolak" with the reason, edits, resubmits.
 - [ ] Supervisor approves. Rep A can no longer edit.
 - [ ] Airplane mode: submit shows an error within ~30 s, no infinite spinner; going back online shows the true state.
+- [ ] While rep A has the assignment open (or just left it), the supervisor approves it. Rep A pulls down on the detail screen, or reopens it: the status changes and the old "Menunggu verifikasi supervisor" message is gone. Offline, pulling shows "Gagal memuat ulang" and keeps the old data.
+- [ ] Pull down on the list: spinner, then up-to-date items.
 - [ ] Sign out as rep A, sign in as rep B on the same phone: no data from A anywhere (see failure diary #4).
 - [ ] Rotate the phone and background the app while the camera is open; the photo still lands.
 - [ ] Try to break rules by hand with the Firebase console / a curl call using rep A's token: read B's assignment, set status `approved`.
