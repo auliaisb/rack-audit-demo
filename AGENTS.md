@@ -11,7 +11,8 @@ Read `SPEC.md`, `docs/data-model.md` and `contract/assignment-status.json` first
 6. User-facing text in Bahasa Indonesia (Android: `strings.xml`). Identifiers and comments in English.
 7. Never commit: `google-services.json`, `.env*` (except `.env.example`), service-account JSON, `.firebaserc`.
 8. Every rules change needs a test in `firebase/test/rules.test.mjs`, written from `SPEC.md`, not from the rules file.
-9. Do not add Cloud Functions. If a requirement seems to need one, stop and say so (see limitation 1 in `docs/data-model.md`).
+9. **Test first for logic.** For any new rule, validation or state logic: write the tests from the requirement, run them, show them FAILING for the right reason (a stub is fine), only then implement; refactor as a separate step. Never write the tests and the implementation in one go. See `docs/tdd-walkthrough.md`.
+10. Do not add Cloud Functions. If a requirement seems to need one, stop and say so (see limitation 1 in `docs/data-model.md`).
 
 ## Before you say "done"
 - `cd dashboard && npm test` (pure-logic tests, no install needed)

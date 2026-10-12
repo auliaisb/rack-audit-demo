@@ -9,6 +9,8 @@ Field-sales app for documenting client store racks. Demo project for the talk *"
 | `firebase/` + `firebase.json` | Auth, Firestore, Storage, Security Rules, Hosting — **no server code** | Backend |
 | `contract/assignment-status.json` | Shared status flow + limits | Read by rules tests, JS tests, Kotlin tests |
 
+TDD example for the talk: [`docs/tdd-walkthrough.md`](docs/tdd-walkthrough.md) (tags `tdd-1-red`, `tdd-2-green`, `tdd-3-refactor`).
+
 Start with [`SPEC.md`](SPEC.md) (one page), then [`docs/data-model.md`](docs/data-model.md). AI-tool rules are in [`AGENTS.md`](AGENTS.md). Setup steps: [`docs/setup-firebase.md`](docs/setup-firebase.md). What went wrong while building: [`docs/failure-diary.md`](docs/failure-diary.md).
 
 ## What is verified — read this first
@@ -18,8 +20,8 @@ This was written in an environment that could not reach npm / Maven / Google Mav
 | Area | Status |
 |---|---|
 | Dashboard pure logic (`status.js`, `validation.js`) | **Ran**: 13 tests pass (`cd dashboard && npm test`, no install needed) |
-| Kotlin pure logic (`StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel`, contract drift) | **Ran** on a plain JVM with the Kotlin 2.0.21 compiler and JUnit 4: 32 tests pass. `ContractTest` used a small org.json stand-in locally; Gradle will use the real library. |
-| Mutation check on the above | **Ran**: 8 injected bugs, 8 caught |
+| Kotlin pure logic (`StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel`, contract drift) | **Ran** on a plain JVM with the Kotlin 2.0.21 compiler and JUnit 4: 40 tests pass (including the TDD-built `OverdueRule`). `ContractTest` used a small org.json stand-in locally; Gradle will use the real library. |
+| Mutation check on the above | **Ran**: 12 injected bugs (8 + 4 on `OverdueRule`), all 12 caught |
 | JSX files, JSON, XML, Kotlin syntax | **Parsed OK** only (no bundling, no Gradle) |
 | Compose screens, Firebase repositories, `ImageProcessor`, React pages | **Never compiled or run.** First Gradle sync / `npm install && npm run build` will likely show errors (wrong versions, missing imports). |
 | `firestore.rules`, `storage.rules` | **Never evaluated** (bracket balance only) |

@@ -15,6 +15,7 @@
     <string name="list_empty">Belum ada tugas.</string>
     <string name="list_error">Gagal memuat tugas.</string>
     <string name="list_logout">Keluar</string>
+    <string name="list_overdue">Terlambat %1$d hari</string>
     <string name="list_due">Tenggat: %1$s</string>
 
     <string name="status_assigned">Ditugaskan</string>

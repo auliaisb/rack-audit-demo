@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -25,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rackaudit.app.R
 import com.rackaudit.app.data.Assignment
 import com.rackaudit.app.domain.AssignmentStatus
+import com.rackaudit.app.domain.OverdueRule
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -63,6 +65,7 @@ fun ListScreen(vm: ListViewModel, onOpen: (String) -> Unit, onLogout: () -> Unit
 
 @Composable
 private fun AssignmentRow(a: Assignment, onClick: () -> Unit) {
+    val daysLate = remember(a) { OverdueRule.daysOverdue(a, System.currentTimeMillis()) }
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(12.dp)) {
             Text(a.title, style = MaterialTheme.typography.titleMedium)
@@ -70,6 +73,13 @@ private fun AssignmentRow(a: Assignment, onClick: () -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.list_due, formatDue(a.dueDateMillis)), style = MaterialTheme.typography.bodySmall)
                 Text(statusText(a.status), style = MaterialTheme.typography.labelLarge)
+            }
+            if (daysLate > 0) {
+                Text(
+                    stringResource(R.string.list_overdue, daysLate),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelMedium,
+                )
             }
         }
     }

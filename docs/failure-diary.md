@@ -9,7 +9,7 @@ Entries are tagged by **how it was found**: `ran` (a tool failed), `read` (spott
 ### 1. The sandbox could not build the project at all — `ran`
 **What happened.** npm, Maven Central and Google Maven are all blocked from the environment where the AI worked (`CONNECT tunnel failed, response 403`). No Android SDK, no emulator, no Firebase emulator.
 **Consequence.** The Compose screens, the Firebase repositories, the React pages, the Security Rules and the rules tests have **never been executed**. Everything the AI wrote there is a first draft, honestly unverified.
-**What changed.** The code was split so that the risky logic is Android-free and runs on a plain JVM / plain Node: `StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel` (Kotlin) and `status.js`, `validation.js` (JS). Those *were* executed (45 tests).
+**What changed.** The code was split so that the risky logic is Android-free and runs on a plain JVM / plain Node: `StatusRules`, `SubmissionValidator`, `ImageMath`, `AssignmentOrdering`, `DetailModel` (Kotlin) and `status.js`, `validation.js` (JS). Those *were* executed (53 tests: 13 JS, 40 Kotlin).
 **Lesson for the talk.** Architecture decides what you can test. "Thin UI, logic in plain classes" is not taste, it is what made verification possible when tooling was missing.
 
 ### 2. `node --test test/` failed on Node 22 — `ran`
@@ -47,6 +47,11 @@ Entries are tagged by **how it was found**: `ran` (a tool failed), `read` (spott
 **Decision.** Not fixed (the requirement was "Firebase only, no server code"); documented as limitation 1 in `docs/data-model.md`; the dashboard shows "Tidak ada foto pada pengajuan ini" so a supervisor sees it immediately. The real fix is a Cloud Function that recounts.
 **Lesson.** Say out loud what your backend cannot guarantee.
 
+### 9. Green bars that meant nothing — `ran` (TDD)
+**What happened.** In the TDD cycle for `OverdueRule`, 5 of the 8 new tests passed against a stub that just returns `false`. A "all green" early in the cycle proved nothing about the feature.
+**What changed.** The cycle includes a stub step that must fail the *behavioural* tests, and a mutation check afterwards (4 of 4 injected bugs caught).
+**Lesson.** A test you have never seen fail has not earned your trust.
+
 ---
 
 ## What did not go wrong (and why you should not trust that)
@@ -55,7 +60,7 @@ Entries are tagged by **how it was found**: `ran` (a tool failed), `read` (spott
 - Dependency versions in `libs.versions.toml` and `package.json` are from the AI's memory. They have not been resolved.
 
 ## Check on the checks (mutation test)
-Eight deliberate bugs were injected into the executable logic (dropped transition, wrong photo limit, missing trim, wrong sort direction, removed double-tap guard, no server reconciliation after failed submit, transition ignoring the actor, reject without a reason). All eight were caught by the tests. This says the *logic* tests are meaningful; it says nothing about the UI, data layer or rules.
+Twelve deliberate bugs (eight, then four more on `OverdueRule`) were injected into the executable logic (dropped transition, wrong photo limit, missing trim, wrong sort direction, removed double-tap guard, no server reconciliation after failed submit, transition ignoring the actor, reject without a reason). All twelve were caught by the tests. This says the *logic* tests are meaningful; it says nothing about the UI, data layer or rules.
 
 ## Your entries
 <!-- Add: date, what you asked the AI, what it produced, what broke, how you found out, what you changed. -->
