@@ -1,0 +1,23 @@
+{
+  "statuses": ["assigned", "submitted", "approved", "rejected", "cancelled"],
+  "transitions": [
+    { "from": "assigned",  "to": "submitted", "by": "sales" },
+    { "from": "assigned",  "to": "cancelled", "by": "supervisor" },
+    { "from": "submitted", "to": "approved",  "by": "supervisor" },
+    { "from": "submitted", "to": "rejected",  "by": "supervisor" },
+    { "from": "rejected",  "to": "submitted", "by": "sales" },
+    { "from": "rejected",  "to": "cancelled", "by": "supervisor" }
+  ],
+  "limits": {
+    "minPhotos": 1,
+    "maxPhotos": 8,
+    "titleMaxLength": 120,
+    "storeNameMaxLength": 120,
+    "storeAddressMaxLength": 200,
+    "instructionsMaxLength": 1000,
+    "noteMaxLength": 1000,
+    "captionMaxLength": 200,
+    "reviewNoteMaxLength": 500,
+    "photoMaxBytes": 1500000
+  }
+}

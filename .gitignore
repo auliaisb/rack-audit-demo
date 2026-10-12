@@ -1,0 +1,25 @@
+# secrets / per-developer config
+.firebaserc
+google-services.json
+**/service-account*.json
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dashboard/dist/
+*.log
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+.DS_Store

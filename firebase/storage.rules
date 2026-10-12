@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Photos live at assignments/{assignmentId}/{photoId}.jpg
+// Access is decided from Firestore, so a rep never sees another rep's photos.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function assignment(id) {
+      return firestore.get(/databases/(default)/documents/assignments/$(id)).data;
+    }
+    function profile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function isActiveSupervisor() {
+      return request.auth != null && profile().role == 'supervisor' && profile().active == true;
+    }
+    function isAssignedRep(id) {
+      return request.auth != null
+        && profile().role == 'sales' && profile().active == true
+        && assignment(id).assignedTo == request.auth.uid;
+    }
+    function editable(id) {
+      return assignment(id).status in ['assigned', 'rejected'];
+    }
+
+    match /assignments/{assignmentId}/{fileName} {
+      allow read: if isActiveSupervisor() || isAssignedRep(assignmentId);
+
+      allow create: if isAssignedRep(assignmentId)
+        && editable(assignmentId)
+        && fileName.matches('[A-Za-z0-9]{8,64}[.]jpg')
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size < 5 * 1024 * 1024;
+
+      allow update: if false;
+
+      allow delete: if isAssignedRep(assignmentId) && editable(assignmentId);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

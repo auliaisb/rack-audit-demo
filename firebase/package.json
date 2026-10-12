@@ -1,0 +1,14 @@
+{
+  "name": "rack-display-audit-rules-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore,storage --project demo-rack-audit \"node --test\"",
+    "emulators": "firebase emulators:start --project demo-rack-audit"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.14.1",
+    "firebase-tools": "^13.29.1"
+  }
+}

@@ -1,0 +1,137 @@
+rules_version = '2';
+
+// The real backend. See SPEC.md and docs/data-model.md.
+// Status flow mirrors contract/assignment-status.json — change both together.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+    function hasRole(role) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc(request.auth.uid).role == role
+        && userDoc(request.auth.uid).active == true;
+    }
+    function isSupervisor() { return hasRole('supervisor'); }
+    function isSales()      { return hasRole('sales'); }
+
+    function assignmentOf(id) {
+      return get(/databases/$(database)/documents/assignments/$(id)).data;
+    }
+    function isStr(v, min, max) {
+      return v is string && v.size() >= min && v.size() <= max;
+    }
+
+    // ---- users: read only, never written by clients ----
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isSupervisor());
+      allow list: if isSupervisor();
+      allow write: if false;
+    }
+
+    // ---- assignments ----
+    match /assignments/{id} {
+
+      allow get, list: if isSupervisor()
+        || (isSales() && resource.data.assignedTo == request.auth.uid);
+
+      allow create: if isSupervisor()
+        && request.resource.data.keys().hasOnly([
+             'title', 'instructions', 'storeName', 'storeAddress', 'assignedTo',
+             'assignedBy', 'dueDate', 'status', 'photoCount', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll([
+             'title', 'instructions', 'storeName', 'storeAddress', 'assignedTo',
+             'assignedBy', 'dueDate', 'status', 'photoCount', 'createdAt', 'updatedAt'])
+        && isStr(request.resource.data.title, 1, 120)
+        && isStr(request.resource.data.instructions, 0, 1000)
+        && isStr(request.resource.data.storeName, 1, 120)
+        && isStr(request.resource.data.storeAddress, 0, 200)
+        && request.resource.data.dueDate is timestamp
+        && request.resource.data.status == 'assigned'
+        && request.resource.data.photoCount == 0
+        && request.resource.data.assignedBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.assignedTo))
+        && userDoc(request.resource.data.assignedTo).role == 'sales';
+
+      // Which fields changed? Everything else must stay identical.
+      function changed() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      // assigned|rejected -> submitted, by the assigned rep
+      function salesSubmit() {
+        return resource.data.assignedTo == request.auth.uid
+          && resource.data.status in ['assigned', 'rejected']
+          && request.resource.data.status == 'submitted'
+          && changed().hasOnly(['status', 'note', 'photoCount', 'submittedAt', 'updatedAt'])
+          && isStr(request.resource.data.note, 1, 1000)
+          && request.resource.data.photoCount is int
+          && request.resource.data.photoCount >= 1
+          && request.resource.data.photoCount <= 8
+          && request.resource.data.submittedAt == request.time
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      // submitted -> approved | rejected (reason mandatory when rejecting)
+      function supervisorReview() {
+        return resource.data.status == 'submitted'
+          && request.resource.data.status in ['approved', 'rejected']
+          && changed().hasOnly(['status', 'reviewNote', 'reviewedBy', 'reviewedAt', 'updatedAt'])
+          && isStr(request.resource.data.reviewNote, 0, 500)
+          && (request.resource.data.status == 'approved'
+              || request.resource.data.reviewNote.size() >= 1)
+          && request.resource.data.reviewedBy == request.auth.uid
+          && request.resource.data.reviewedAt == request.time
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      // assigned|rejected -> cancelled
+      function supervisorCancel() {
+        return resource.data.status in ['assigned', 'rejected']
+          && request.resource.data.status == 'cancelled'
+          && changed().hasOnly(['status', 'updatedAt'])
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      allow update: if (isSales() && salesSubmit())
+        || (isSupervisor() && (supervisorReview() || supervisorCancel()));
+
+      allow delete: if false;
+
+      // ---- photos ----
+      match /photos/{photoId} {
+        function ownsEditable() {
+          return isSales()
+            && assignmentOf(id).assignedTo == request.auth.uid
+            && assignmentOf(id).status in ['assigned', 'rejected'];
+        }
+
+        allow get, list: if isSupervisor()
+          || (isSales() && assignmentOf(id).assignedTo == request.auth.uid);
+
+        allow create: if ownsEditable()
+          && request.resource.data.keys().hasOnly(['storagePath', 'caption', 'uploadedBy', 'createdAt'])
+          && request.resource.data.keys().hasAll(['storagePath', 'caption', 'uploadedBy', 'createdAt'])
+          && request.resource.data.storagePath == 'assignments/' + id + '/' + photoId + '.jpg'
+          && isStr(request.resource.data.caption, 0, 200)
+          && request.resource.data.uploadedBy == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if false;
+        allow delete: if ownsEditable();
+      }
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

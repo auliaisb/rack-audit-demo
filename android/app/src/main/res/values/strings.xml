@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Audit Rak</string>
+
+    <string name="login_title">Masuk</string>
+    <string name="login_email">Email</string>
+    <string name="login_password">Kata sandi</string>
+    <string name="login_button">Masuk</string>
+    <string name="login_error_credentials">Email atau kata sandi salah.</string>
+    <string name="login_error_network">Tidak ada koneksi. Coba lagi.</string>
+    <string name="login_error_not_sales">Akun ini bukan akun sales. Supervisor memakai dashboard web.</string>
+    <string name="login_error_generic">Gagal masuk. Coba lagi.</string>
+
+    <string name="list_title">Tugas saya</string>
+    <string name="list_empty">Belum ada tugas.</string>
+    <string name="list_error">Gagal memuat tugas.</string>
+    <string name="list_logout">Keluar</string>
+    <string name="list_due">Tenggat: %1$s</string>
+
+    <string name="status_assigned">Ditugaskan</string>
+    <string name="status_submitted">Menunggu verifikasi</string>
+    <string name="status_approved">Disetujui</string>
+    <string name="status_rejected">Ditolak</string>
+    <string name="status_cancelled">Dibatalkan</string>
+
+    <string name="detail_instructions">Instruksi</string>
+    <string name="detail_rejected_reason">Ditolak: %1$s</string>
+    <string name="detail_photos">Foto (%1$d/%2$d)</string>
+    <string name="detail_take_photo">Ambil foto</string>
+    <string name="detail_caption">Keterangan foto (opsional)</string>
+    <string name="detail_note">Deskripsi kondisi rak</string>
+    <string name="detail_submit">Kirim ke supervisor</string>
+    <string name="detail_back">Kembali</string>
+    <string name="detail_remove">Hapus</string>
+    <string name="detail_uploading">Mengunggah…</string>
+    <string name="detail_submitted_ok">Terkirim. Menunggu verifikasi supervisor.</string>
+    <string name="detail_readonly">Tugas ini tidak bisa diubah lagi.</string>
+
+    <string name="err_note_required">Deskripsi wajib diisi.</string>
+    <string name="err_note_too_long">Deskripsi terlalu panjang.</string>
+    <string name="err_photos_min">Minimal %1$d foto.</string>
+    <string name="err_photos_max">Maksimal %1$d foto.</string>
+    <string name="err_upload">Gagal mengunggah foto. Periksa koneksi lalu coba lagi.</string>
+    <string name="err_submit">Gagal mengirim. Coba lagi.</string>
+    <string name="err_camera">Gagal membuka kamera.</string>
+    <string name="err_photo_process">Foto tidak bisa diproses. Ambil ulang.</string>
+</resources>

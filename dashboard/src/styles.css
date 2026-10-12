@@ -1,0 +1,34 @@
+:root { --fg:#1b1f24; --muted:#5b6672; --bg:#f5f6f8; --card:#fff; --line:#dde1e6; --accent:#1a5fd0; --danger:#b3261e; }
+* { box-sizing: border-box; }
+body { margin:0; font:15px/1.5 system-ui, sans-serif; color:var(--fg); background:var(--bg); }
+.center { text-align:center; margin-top:4rem; }
+.topbar { display:flex; align-items:center; gap:1rem; padding:.6rem 1rem; background:var(--card); border-bottom:1px solid var(--line); }
+.topbar h1 { font-size:1.1rem; margin:0; }
+.topbar nav { display:flex; gap:.5rem; flex:1; }
+main { max-width:960px; margin:1.5rem auto; padding:0 1rem; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:1rem; margin:1rem 0; display:flex; flex-direction:column; gap:.75rem; }
+.login { max-width:360px; margin:4rem auto; }
+label { display:flex; flex-direction:column; gap:.25rem; font-weight:600; }
+input, select, textarea { font:inherit; padding:.5rem; border:1px solid var(--line); border-radius:6px; }
+button { font:inherit; padding:.5rem .9rem; border:0; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; }
+button:disabled { opacity:.6; cursor:default; }
+button.link { background:none; color:var(--accent); padding:.25rem; }
+button.danger { background:var(--danger); }
+button.link.danger { background:none; color:var(--danger); }
+.row { display:flex; align-items:center; gap:.75rem; justify-content:space-between; }
+.muted { color:var(--muted); }
+.error { color:var(--danger); font-weight:400; }
+.pre { white-space:pre-wrap; margin:0; }
+table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); }
+th, td { text-align:left; padding:.6rem .75rem; border-bottom:1px solid var(--line); }
+tbody tr { cursor:pointer; }
+tbody tr:hover, tbody tr:focus { background:#eef3fb; outline:none; }
+.badge { font-size:.75rem; padding:.15rem .5rem; border-radius:999px; background:#e7eaee; }
+.badge.submitted { background:#fff1c9; }
+.badge.approved { background:#d7f0dc; }
+.badge.rejected { background:#f8d9d6; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:1rem; margin:1rem 0; }
+figure { margin:0; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+figure img { width:100%; height:200px; object-fit:cover; display:block; }
+figcaption { padding:.5rem; font-size:.85rem; }
+.missing { height:200px; display:grid; place-items:center; color:var(--muted); }
